@@ -4,6 +4,7 @@ import { usePalette } from '~/composables/usePalette'
 
 const host = ref<HTMLDivElement | null>(null)
 let cleanup: (() => void) | null = null
+let unmounted = false
 
 const { palette } = usePalette()
 
@@ -19,14 +20,18 @@ onMounted(async () => {
   const { OutputPass } = await import('three/addons/postprocessing/OutputPass.js')
   const { RoomEnvironment } = await import('three/addons/environments/RoomEnvironment.js')
 
+  // Component may have unmounted while the dynamic imports were in flight —
+  // bail before creating any WebGL resources so there is nothing to leak.
+  if (unmounted) return
+
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   const disposables: Array<{ dispose: () => void }> = []
 
   const hexToRgba = (hex: string, a: number) => {
     const h = hex.replace('#', '')
-    const r = parseInt(h.slice(0, 2), 16)
-    const g = parseInt(h.slice(2, 4), 16)
-    const b = parseInt(h.slice(4, 6), 16)
+    const r = parseInt(h.slice(0, 2), 16) || 0
+    const g = parseInt(h.slice(2, 4), 16) || 0
+    const b = parseInt(h.slice(4, 6), 16) || 0
     return `rgba(${r},${g},${b},${a})`
   }
 
@@ -491,7 +496,10 @@ onMounted(async () => {
   }
 })
 
-onBeforeUnmount(() => cleanup?.())
+onBeforeUnmount(() => {
+  unmounted = true
+  cleanup?.()
+})
 </script>
 
 <template>
