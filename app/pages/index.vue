@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import { useRoute } from 'vue-router'
-
 useHead({
   title: 'Armillary Sphere',
   meta: [
@@ -11,10 +9,6 @@ useHead({
     },
   ],
 })
-
-// Editor nur in der Entwicklung (oder explizit via ?editor) — nie im Prod-Build sichtbar.
-const route = useRoute()
-const showEditor = import.meta.dev || route.query.editor !== undefined
 </script>
 
 <template>
@@ -29,8 +23,9 @@ const showEditor = import.meta.dev || route.query.editor !== undefined
       <CelestialCourseSection />
     </main>
     <CelestialSiteFooter />
+    <!-- Farb-Editor: immer verfügbar (auch im Production-Build / auf der Live-Seite) -->
     <ClientOnly>
-      <CelestialColorEditor v-if="showEditor" />
+      <CelestialColorEditor />
     </ClientOnly>
   </div>
 </template>
