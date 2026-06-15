@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useRoute } from 'vue-router'
+
 useHead({
   title: 'Lodestar — Find true north for everything you ship',
   meta: [
@@ -9,6 +11,10 @@ useHead({
     },
   ],
 })
+
+// Editor nur in der Entwicklung (oder explizit via ?editor) — nie im Prod-Build sichtbar.
+const route = useRoute()
+const showEditor = import.meta.dev || route.query.editor !== undefined
 </script>
 
 <template>
@@ -23,5 +29,8 @@ useHead({
       <CelestialCourseSection />
     </main>
     <CelestialSiteFooter />
+    <ClientOnly>
+      <CelestialColorEditor v-if="showEditor" />
+    </ClientOnly>
   </div>
 </template>
