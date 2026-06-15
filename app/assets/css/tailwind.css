@@ -149,7 +149,9 @@
    Scoped under .lodestar so the v1 page is untouched.
    ========================================================================= */
 
-@theme inline {
+/* Colors as non-inline @theme so utilities emit var(--color-*) and can be
+   recolored at runtime by the dev color editor (see usePalette.applyCssVars). */
+@theme {
   --color-ink: #0b1026;
   --color-void: #05070f;
   --color-bone: #ece6d6;
@@ -157,6 +159,9 @@
   --color-brass-bright: #e7c66b;
   --color-haze: #7e91b4;
   --color-hairline: #2a3354;
+}
+
+@theme inline {
   --font-display: 'Fraunces', Georgia, serif;
   --font-tel: 'Space Mono', ui-monospace, monospace;
 }

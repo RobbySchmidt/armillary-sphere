@@ -1,6 +1,6 @@
 <script setup lang="ts">
 useHead({
-  title: 'Lodestar — Find true north for everything you ship',
+  title: 'Armillary Sphere',
   meta: [
     {
       name: 'description',
@@ -23,5 +23,9 @@ useHead({
       <CelestialCourseSection />
     </main>
     <CelestialSiteFooter />
+    <!-- Farb-Editor: immer verfügbar (auch im Production-Build / auf der Live-Seite) -->
+    <ClientOnly>
+      <CelestialColorEditor />
+    </ClientOnly>
   </div>
 </template>
