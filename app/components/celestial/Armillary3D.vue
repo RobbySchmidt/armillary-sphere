@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { usePalette } from '~/composables/usePalette'
 
 const host = ref<HTMLDivElement | null>(null)
 let cleanup: (() => void) | null = null
+
+const { palette } = usePalette()
 
 onMounted(async () => {
   const el = host.value
@@ -19,6 +22,14 @@ onMounted(async () => {
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   const disposables: Array<{ dispose: () => void }> = []
 
+  const hexToRgba = (hex: string, a: number) => {
+    const h = hex.replace('#', '')
+    const r = parseInt(h.slice(0, 2), 16)
+    const g = parseInt(h.slice(2, 4), 16)
+    const b = parseInt(h.slice(4, 6), 16)
+    return `rgba(${r},${g},${b},${a})`
+  }
+
   let width = el.clientWidth
   let height = el.clientHeight
 
@@ -32,7 +43,7 @@ onMounted(async () => {
   el.appendChild(renderer.domElement)
 
   const scene = new THREE.Scene()
-  scene.fog = new THREE.Fog(0x070b1c, 11, 26)
+  scene.fog = new THREE.Fog(new THREE.Color(palette.fog), 11, 26)
 
   const CAM_DIST = 10
   const camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100)
@@ -46,7 +57,8 @@ onMounted(async () => {
   disposables.push(envRT, pmrem)
 
   // -------------------------------------------------------- canvas textures
-  const radialTexture = (inner: string, mid: string, outer: string) => {
+  // track=false → wird vom applyPalette regeneriert und manuell disposed
+  const radialTexture = (inner: string, mid: string, outer: string, track = true) => {
     const c = document.createElement('canvas')
     c.width = c.height = 256
     const g = c.getContext('2d')!
@@ -58,11 +70,11 @@ onMounted(async () => {
     g.fillRect(0, 0, 256, 256)
     const tex = new THREE.CanvasTexture(c)
     tex.colorSpace = THREE.SRGBColorSpace
-    disposables.push(tex)
+    if (track) disposables.push(tex)
     return tex
   }
 
-  const raBandTexture = () => {
+  const raBandTexture = (track = true) => {
     const w = 2048
     const h = 160
     const c = document.createElement('canvas')
@@ -70,9 +82,9 @@ onMounted(async () => {
     c.height = h
     const g = c.getContext('2d')!
     g.clearRect(0, 0, w, h)
-    const brass = '#e7c66b'
-    g.strokeStyle = brass
-    g.fillStyle = brass
+    const brassCol = palette.brassBright
+    g.strokeStyle = brassCol
+    g.fillStyle = brassCol
     // graduation: minor every 1°, medium every 5°, major every 15° (= 1 RA hour)
     for (let deg = 0; deg < 360; deg++) {
       const x = (deg / 360) * w
@@ -99,13 +111,13 @@ onMounted(async () => {
     tex.colorSpace = THREE.SRGBColorSpace
     tex.wrapS = THREE.RepeatWrapping
     tex.anisotropy = renderer.capabilities.getMaxAnisotropy()
-    disposables.push(tex)
+    if (track) disposables.push(tex)
     return tex
   }
 
   // ------------------------------------------------------------- materials
   const brass = new THREE.MeshPhysicalMaterial({
-    color: 0xc9a24a,
+    color: new THREE.Color(palette.brass),
     metalness: 1,
     roughness: 0.26,
     clearcoat: 0.5,
@@ -113,7 +125,7 @@ onMounted(async () => {
     envMapIntensity: 1.15,
   })
   const brassBright = new THREE.MeshPhysicalMaterial({
-    color: 0xe7c66b,
+    color: new THREE.Color(palette.brassBright),
     metalness: 1,
     roughness: 0.18,
     clearcoat: 0.6,
@@ -141,7 +153,6 @@ onMounted(async () => {
     s.position.set(x, y, z)
     parent.add(s)
   }
-  // a pair of pins bridging from radius `inner` to `outer` along a principal axis
   const addPins = (parent: THREE.Object3D, axis: 'x' | 'z', inner: number, outer: number) => {
     const geo = new THREE.CylinderGeometry(0.022, 0.022, outer - inner, 12)
     disposables.push(geo)
@@ -159,24 +170,19 @@ onMounted(async () => {
     }
   }
 
-  // --- A real gimbal: three nested rings (R1 > R2 > R3), each hung inside the
-  // next by bearing pins on a perpendicular axis. Nothing pierces anything and
-  // every ring can actually spin about its own bearing line. ---
+  // --- A real gimbal: three nested rings (R1 > R2 > R3) ---
   const R1 = 2.25
   const R2 = 1.95
   const R3 = 1.65
   const tube = 0.03
 
-  // fixed polar bearing caps — the two "bubbles" the instrument hangs from
   addBearing(sphere, 0, R1, 0)
   addBearing(sphere, 0, -R1, 0)
 
-  // OUTER ring — spins about the vertical (polar) axis Y; meets the Y caps
   const outerGimbal = new THREE.Group()
   sphere.add(outerGimbal)
-  outerGimbal.add(makeRing(R1, tube, brass)) // torus in the XY plane
+  outerGimbal.add(makeRing(R1, tube, brass))
 
-  // MIDDLE ring — pivots about X, hung inside the outer ring at (±R1, 0, 0)
   const middleGimbal = new THREE.Group()
   outerGimbal.add(middleGimbal)
   addPins(middleGimbal, 'x', R2, R1)
@@ -184,7 +190,7 @@ onMounted(async () => {
   addBearing(middleGimbal, -R1, 0, 0)
 
   // the right-ascension scale rides the middle ring as a flush band
-  const bandTex = raBandTexture()
+  let bandTex = raBandTexture(false)
   const bandMat = new THREE.MeshStandardMaterial({
     map: bandTex,
     emissive: 0xffffff,
@@ -199,44 +205,42 @@ onMounted(async () => {
   disposables.push(bandMat)
   const bandGeo = new THREE.CylinderGeometry(R2, R2, 0.34, 240, 1, true)
   disposables.push(bandGeo)
-  middleGimbal.add(new THREE.Mesh(bandGeo, bandMat)) // axis Y → lies in XZ plane
+  middleGimbal.add(new THREE.Mesh(bandGeo, bandMat))
   const middleRing = makeRing(R2, tube * 0.8, brassBright)
-  middleRing.rotation.x = Math.PI / 2 // XZ plane, meets the X pins
+  middleRing.rotation.x = Math.PI / 2
   middleGimbal.add(middleRing)
 
-  // INNER ring — pivots about Z, hung inside the middle ring at (0, 0, ±R2)
   const innerGimbal = new THREE.Group()
   middleGimbal.add(innerGimbal)
   addPins(innerGimbal, 'z', R3, R2)
   addBearing(innerGimbal, 0, 0, R2)
   addBearing(innerGimbal, 0, 0, -R2)
   const innerRing = makeRing(R3, tube, brass)
-  innerRing.rotation.y = Math.PI / 2 // YZ plane, meets the Z pins
+  innerRing.rotation.y = Math.PI / 2
   innerGimbal.add(innerRing)
 
-  // OUTER fixed meridian frame — the polar bearings hang from it; it does not spin
+  // OUTER fixed meridian frame
   const R0 = 2.6
   const frame = makeRing(R0, 0.042, brass)
-  frame.rotation.y = Math.PI / 2 // YZ plane (vertical), perpendicular to the outer gimbal
+  frame.rotation.y = Math.PI / 2
   sphere.add(frame)
   {
-    const g = new THREE.CylinderGeometry(0.024, 0.024, R0 - R1, 12) // ties caps → frame
+    const g = new THREE.CylinderGeometry(0.024, 0.024, R0 - R1, 12)
     disposables.push(g)
     const mid = (R0 + R1) / 2
     for (const s of [1, -1]) {
-      const c = new THREE.Mesh(g, brass) // default cylinder axis is Y — already vertical
+      const c = new THREE.Mesh(g, brass)
       c.position.set(0, s * mid, 0)
       sphere.add(c)
     }
   }
 
-  // INNERMOST ring — a 4th nested gimbal hung in the inner ring at (0, ±R3, 0),
-  // spinning about Y to add life near the star
+  // INNERMOST ring
   const R4 = 1.32
   const coreGimbal = new THREE.Group()
   innerGimbal.add(coreGimbal)
   {
-    const g = new THREE.CylinderGeometry(0.02, 0.02, R3 - R4, 12) // pins along Y
+    const g = new THREE.CylinderGeometry(0.02, 0.02, R3 - R4, 12)
     disposables.push(g)
     const mid = (R3 + R4) / 2
     for (const s of [1, -1]) {
@@ -248,14 +252,14 @@ onMounted(async () => {
   addBearing(coreGimbal, 0, R3, 0)
   addBearing(coreGimbal, 0, -R3, 0)
   const coreRing = makeRing(R4, tube, brassBright)
-  coreGimbal.add(coreRing) // XY plane, spins about Y
+  coreGimbal.add(coreRing)
 
   // ----------------------------------------------------------- central star
   const starGeo = new THREE.SphereGeometry(0.28, 48, 48)
   disposables.push(starGeo)
   const starMat = new THREE.MeshStandardMaterial({
-    color: 0xfff4d6,
-    emissive: 0xffd98a,
+    color: new THREE.Color(palette.starBody),
+    emissive: new THREE.Color(palette.starGlow),
     emissiveIntensity: 1.6,
     metalness: 0,
     roughness: 0.5,
@@ -264,8 +268,14 @@ onMounted(async () => {
   const star = new THREE.Mesh(starGeo, starMat)
   sphere.add(star)
 
+  let coronaTex = radialTexture(
+    hexToRgba(palette.starGlow, 0.95),
+    hexToRgba(palette.brassBright, 0.35),
+    hexToRgba(palette.brassBright, 0),
+    false,
+  )
   const coronaMat = new THREE.SpriteMaterial({
-    map: radialTexture('rgba(255,235,170,0.95)', 'rgba(231,198,107,0.35)', 'rgba(231,198,107,0)'),
+    map: coronaTex,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
     transparent: true,
@@ -275,16 +285,15 @@ onMounted(async () => {
   corona.scale.set(1.9, 1.9, 1)
   sphere.add(corona)
 
-  const coreLight = new THREE.PointLight(0xffd98a, 3, 14, 2)
+  const coreLight = new THREE.PointLight(new THREE.Color(palette.starGlow), 3, 14, 2)
   sphere.add(coreLight)
-
 
   // ----------------------------------------------------------- starfields
   const starSprite = radialTexture('rgba(255,255,255,1)', 'rgba(255,255,255,0.5)', 'rgba(255,255,255,0)')
   const makeStars = (count: number, size: number, spread: [number, number], opacity: number) => {
     const pos = new Float32Array(count * 3)
     const col = new Float32Array(count * 3)
-    const palette = [
+    const paletteCols = [
       [1.0, 0.97, 0.9],
       [0.72, 0.82, 1.0],
       [0.95, 0.8, 0.45],
@@ -297,7 +306,7 @@ onMounted(async () => {
       pos[i * 3] = r * Math.sin(phi) * Math.cos(theta)
       pos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta)
       pos[i * 3 + 2] = r * Math.cos(phi) - 4
-      const p = palette[(Math.random() * palette.length) | 0]
+      const p = paletteCols[(Math.random() * paletteCols.length) | 0]
       col[i * 3] = p[0]
       col[i * 3 + 1] = p[1]
       col[i * 3 + 2] = p[2]
@@ -325,8 +334,14 @@ onMounted(async () => {
   scene.add(starGroup)
 
   // faint gold haze behind everything for depth
+  let hazeTex = radialTexture(
+    hexToRgba(palette.brassBright, 0.22),
+    'rgba(110,90,40,0.06)',
+    'rgba(0,0,0,0)',
+    false,
+  )
   const hazeMat = new THREE.SpriteMaterial({
-    map: radialTexture('rgba(231,198,107,0.22)', 'rgba(110,90,40,0.06)', 'rgba(0,0,0,0)'),
+    map: hazeTex,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
     depthTest: false,
@@ -340,11 +355,12 @@ onMounted(async () => {
   scene.add(haze)
 
   // ------------------------------------------------------------- lighting
-  scene.add(new THREE.AmbientLight(0x35406a, 0.8))
-  const key = new THREE.PointLight(0xffd9a0, 50, 60, 2)
+  const ambient = new THREE.AmbientLight(new THREE.Color(palette.lightAmbient), 0.8)
+  scene.add(ambient)
+  const key = new THREE.PointLight(new THREE.Color(palette.lightWarm), 50, 60, 2)
   key.position.set(5, 6, 6)
   scene.add(key)
-  const rim = new THREE.PointLight(0x6f8fd0, 40, 60, 2)
+  const rim = new THREE.PointLight(new THREE.Color(palette.lightRim), 40, 60, 2)
   rim.position.set(-6, -3, -3)
   scene.add(rim)
 
@@ -353,9 +369,6 @@ onMounted(async () => {
   tiltGroup.rotation.z = THREE.MathUtils.degToRad(8)
 
   // ----------------------------------------------------- post-processing
-  // EffectComposer renders into its own target and bypasses the renderer's MSAA,
-  // which is what made the thin rings look jagged. A multisampled HalfFloat
-  // target restores antialiasing and keeps the bloom gradient smooth.
   const rt = new THREE.WebGLRenderTarget(width, height, {
     type: THREE.HalfFloatType,
     samples: 4,
@@ -367,9 +380,54 @@ onMounted(async () => {
   composer.addPass(new OutputPass())
   composer.setSize(width, height)
 
-  // Scale the instrument so it always fits the (often portrait) container in
-  // BOTH axes — horizontal FOV is the tighter constraint here.
-  const FIT_RADIUS = 3.4 // bounding radius of the instrument
+  // ------------------------------------------- live recolour from the editor
+  const applyPalette = () => {
+    brass.color.set(palette.brass)
+    brassBright.color.set(palette.brassBright)
+    starMat.color.set(palette.starBody)
+    starMat.emissive.set(palette.starGlow)
+    coreLight.color.set(palette.starGlow)
+    key.color.set(palette.lightWarm)
+    rim.color.set(palette.lightRim)
+    ambient.color.set(palette.lightAmbient)
+    ;(scene.fog as THREE.Fog).color.set(palette.fog)
+
+    const newCorona = radialTexture(
+      hexToRgba(palette.starGlow, 0.95),
+      hexToRgba(palette.brassBright, 0.35),
+      hexToRgba(palette.brassBright, 0),
+      false,
+    )
+    coronaMat.map = newCorona
+    coronaMat.needsUpdate = true
+    coronaTex.dispose()
+    coronaTex = newCorona
+
+    const newHaze = radialTexture(
+      hexToRgba(palette.brassBright, 0.22),
+      'rgba(110,90,40,0.06)',
+      'rgba(0,0,0,0)',
+      false,
+    )
+    hazeMat.map = newHaze
+    hazeMat.needsUpdate = true
+    hazeTex.dispose()
+    hazeTex = newHaze
+
+    const newBand = raBandTexture(false)
+    bandMat.map = newBand
+    bandMat.emissiveMap = newBand
+    bandMat.needsUpdate = true
+    bandTex.dispose()
+    bandTex = newBand
+
+    // bei reduced-motion läuft keine Render-Schleife → einmal nachzeichnen
+    if (reduceMotion) composer.render()
+  }
+  const stopWatch = watch(palette, applyPalette, { deep: true })
+
+  // Scale the instrument so it always fits the container in BOTH axes.
+  const FIT_RADIUS = 3.4
   const fitInstrument = () => {
     const vFov = THREE.MathUtils.degToRad(camera.fov)
     const halfH = CAM_DIST * Math.tan(vFov / 2)
@@ -399,15 +457,12 @@ onMounted(async () => {
     last = t
 
     if (!reduceMotion) {
-      // whole instrument (incl. the fixed frame) turns about its tilted polar axis
       sphere.rotation.y += dt * 0.1
-      // gimbal: each ring spins about its own bearing axis (nested gyroscope)
       outerGimbal.rotation.y += dt * 0.25
       middleGimbal.rotation.x += dt * 0.4
       innerGimbal.rotation.z += dt * 0.55
       coreGimbal.rotation.y += dt * 0.7
       starGroup.rotation.y += dt * 0.008
-      // breathing star
       const pulse = 1.6 + Math.sin(t * 0.0022) * 0.3
       starMat.emissiveIntensity = pulse
       corona.scale.setScalar(1.9 + Math.sin(t * 0.0022) * 0.12)
@@ -423,9 +478,13 @@ onMounted(async () => {
   }
 
   cleanup = () => {
+    stopWatch()
     cancelAnimationFrame(raf)
     ro.disconnect()
     composer.dispose()
+    coronaTex.dispose()
+    hazeTex.dispose()
+    bandTex.dispose()
     for (const d of disposables) d.dispose()
     renderer.dispose()
     if (renderer.domElement.parentNode === el) el.removeChild(renderer.domElement)
