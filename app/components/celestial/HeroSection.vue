@@ -9,7 +9,7 @@
     <!-- warm core glow behind the instrument -->
     <div
       class="pointer-events-none absolute right-[8%] top-1/2 hidden size-[34rem] -translate-y-1/2 rounded-full opacity-60 blur-3xl lg:block"
-      style="background: radial-gradient(circle, rgba(231,198,107,0.18), transparent 65%)"
+      style="background: radial-gradient(circle, color-mix(in oklab, var(--color-brass-bright) 18%, transparent), transparent 65%)"
       aria-hidden="true"
     />
 
