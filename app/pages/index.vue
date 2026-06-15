@@ -2,7 +2,7 @@
 import { useRoute } from 'vue-router'
 
 useHead({
-  title: 'Lodestar — Find true north for everything you ship',
+  title: 'Armillary Sphere',
   meta: [
     {
       name: 'description',
