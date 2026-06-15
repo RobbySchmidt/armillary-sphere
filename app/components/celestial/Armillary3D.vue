@@ -338,10 +338,11 @@ onMounted(async () => {
   starGroup.add(dust)
   scene.add(starGroup)
 
-  // faint gold haze behind everything for depth
+  // faint gold haze behind everything for depth — kept gentle so it falls off
+  // well before the canvas edges (avoids a visible warm rectangle)
   let hazeTex = radialTexture(
-    hexToRgba(palette.brassBright, 0.22),
-    'rgba(110,90,40,0.06)',
+    hexToRgba(palette.brassBright, 0.14),
+    'rgba(110,90,40,0.04)',
     'rgba(0,0,0,0)',
     false,
   )
@@ -409,8 +410,8 @@ onMounted(async () => {
     coronaTex = newCorona
 
     const newHaze = radialTexture(
-      hexToRgba(palette.brassBright, 0.22),
-      'rgba(110,90,40,0.06)',
+      hexToRgba(palette.brassBright, 0.14),
+      'rgba(110,90,40,0.04)',
       'rgba(0,0,0,0)',
       false,
     )
@@ -432,7 +433,10 @@ onMounted(async () => {
   const stopWatch = watch(palette, applyPalette, { deep: true })
 
   // Scale the instrument so it always fits the container in BOTH axes.
-  const FIT_RADIUS = 3.4
+  // Slightly larger than the instrument's bounding radius (3.4) so there is a
+  // transparent margin for the host mask to fade the warm haze into — this keeps
+  // the square canvas edges from reading as a hard box.
+  const FIT_RADIUS = 3.9
   const fitInstrument = () => {
     const vFov = THREE.MathUtils.degToRad(camera.fov)
     const halfH = CAM_DIST * Math.tan(vFov / 2)
@@ -507,7 +511,7 @@ onBeforeUnmount(() => {
     ref="host"
     aria-hidden="true"
     class="h-full w-full"
-    style="-webkit-mask-image: radial-gradient(82% 82% at 52% 48%, #000 66%, transparent 100%);
-           mask-image: radial-gradient(82% 82% at 52% 48%, #000 66%, transparent 100%);"
+    style="-webkit-mask-image: radial-gradient(85% 85% at 50% 47%, #000 22%, transparent 90%);
+           mask-image: radial-gradient(85% 85% at 50% 47%, #000 22%, transparent 90%);"
   />
 </template>
