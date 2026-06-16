@@ -436,7 +436,7 @@ onMounted(async () => {
   // Slightly larger than the instrument's bounding radius (3.4) so there is a
   // transparent margin for the host mask to fade the warm haze into — this keeps
   // the square canvas edges from reading as a hard box.
-  const FIT_RADIUS = 3.9
+  const FIT_RADIUS = 3.25
   const fitInstrument = () => {
     const vFov = THREE.MathUtils.degToRad(camera.fov)
     const halfH = CAM_DIST * Math.tan(vFov / 2)

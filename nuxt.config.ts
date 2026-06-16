@@ -6,10 +6,40 @@ export default defineNuxtConfig({
   devtools: { enabled: false },
   css: ['~/assets/css/tailwind.css'],
 
+  app: {
+    head: {
+      htmlAttrs: { lang: 'de' },
+      script: [
+        {
+          // Set the theme class before first paint to avoid a flash (FOUC).
+          innerHTML:
+            "(function(){try{var t=localStorage.getItem('rho-theme');if(!t){t=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark'}if(t==='dark'){document.documentElement.classList.add('dark')}}catch(e){}})();",
+          tagPosition: 'head',
+        },
+      ],
+    },
+  },
+
   vite: {
     plugins: [
       tailwindcss(),
     ],
+  },
+
+  nitro: {
+    prerender: {
+      crawlLinks: true,
+      routes: [
+        '/',
+        '/leistungen',
+        '/projekte',
+        '/projekte/hygieia',
+        '/projekte/mzla',
+        '/projekte/ergovision',
+        '/agentur',
+        '/kontakt',
+      ],
+    },
   },
 
   modules: ['shadcn-nuxt'],

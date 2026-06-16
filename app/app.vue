@@ -1,20 +1,16 @@
 <script setup lang="ts">
+// Title/description are set per-page via useHead. The theme class on <html> is
+// managed by useTheme + the FOUC guard script in nuxt.config — not hardcoded here.
 useHead({
-  htmlAttrs: { class: 'dark', lang: 'en' },
-  title: 'Lodestar — Find true north for everything you ship',
-  meta: [
-    {
-      name: 'description',
-      content:
-        'Lodestar is the observability platform that gives your distributed systems a single fixed reference point.',
-    },
-  ],
+  titleTemplate: (title) => (title ? title : 'rhowerk — Tech-Studio'),
 })
 </script>
 
 <template>
-  <div class="min-h-screen bg-background text-foreground">
+  <div>
     <NuxtRouteAnnouncer />
-    <NuxtPage />
+    <NuxtLayout>
+      <NuxtPage />
+    </NuxtLayout>
   </div>
 </template>

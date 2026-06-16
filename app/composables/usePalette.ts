@@ -20,33 +20,29 @@ export interface Palette {
 }
 
 export const PALETTE_DEFAULTS: Palette = {
-  brass: '#c9a24a',
-  brassBright: '#e7c66b',
-  ink: '#0b1026',
-  void: '#05070f',
-  bone: '#ece6d6',
-  haze: '#7e91b4',
-  hairline: '#2a3354',
-  starBody: '#fff4d6',
-  starGlow: '#ffd98a',
-  fog: '#070b1c',
-  lightWarm: '#ffd9a0',
-  lightRim: '#6f8fd0',
-  lightAmbient: '#35406a',
+  // Rings — polished steel / platinum (cool, neutral) so the crimson core pops
+  brass: '#8a9099',
+  brassBright: '#c9d0d8',
+  ink: '#07090f',
+  void: '#04060b',
+  bone: '#e9ecf2',
+  haze: '#8a909b',
+  hairline: '#1c212c',
+  // Core — warm-white body, crimson glow = brand #fc0f47
+  starBody: '#fff0f2',
+  starGlow: '#fc0f47',
+  fog: '#05070f',
+  // Lights tuned to the cool steel + crimson scheme
+  lightWarm: '#ffd9dd',
+  lightRim: '#7f8da6',
+  lightAmbient: '#2a3142',
 }
 
 const STORAGE_KEY = 'lodestar-palette'
 
-// Nur diese Keys spiegeln auf CSS-Custom-Properties (die 3D-Extras nicht).
-const CSS_VAR_MAP: Partial<Record<keyof Palette, string>> = {
-  brass: '--color-brass',
-  brassBright: '--color-brass-bright',
-  ink: '--color-ink',
-  void: '--color-void',
-  bone: '--color-bone',
-  haze: '--color-haze',
-  hairline: '--color-hairline',
-}
+// The site theme now owns its own --rho-* tokens (see tailwind.css); the sphere
+// reads `palette` directly in JS, so nothing needs mirroring to CSS vars anymore.
+const CSS_VAR_MAP: Partial<Record<keyof Palette, string>> = {}
 
 const HEX_RE = /^#[0-9a-fA-F]{6}$/
 
